@@ -4,7 +4,10 @@
 #   1) Create a dedicated network once: docker network create 4gaboards_net
 #   2) Attach your nginx proxy container to external network 4gaboards_net
 #   3) proxy_pass http://fourgaboards-app:1337 (container listens on 1337, not 3000)
-#   4) Set BASE_URL to the URL the app should use (http://…); browsers still hit nginx on https://
+#   4) Set BASE_URL to the browser’s public URL (https://…). HTML links to JS/CSS use this; if it
+#      is http:// while users use https://, the page will be blank (mixed content blocked). Nginx
+#      still talks HTTP to fourgaboards-app:1337. Set TRUST_PROXY when nginx sends X-Forwarded-* .
+#   5) Nginx must forward the browser hostname to the app (see comment block in 4gaBoards service).
 
 services:
   db:
@@ -40,8 +43,17 @@ services:
     # Optional: map host port 3000 -> 1337 for local debugging only (not required for nginx).
     # ports:
     #   - 3000:1337
+    # Nginx must send the browser’s Host (and forwarded TLS), not only the upstream name. Example:
+    #   proxy_set_header Host $host;
+    #   proxy_set_header X-Forwarded-Host $host;
+    #   proxy_set_header X-Forwarded-Proto $scheme;
+    #   proxy_set_header X-Real-IP $remote_addr;
+    #   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    # The app does not resolve 4ga.gamersanon.home to itself; BASE_URL + these headers are enough.
+    # WebSockets: nginx must proxy /socket.io/ with HTTP/1.1 Upgrade (see Sails reverse-proxy docs).
     environment:
-      BASE_URL: http://4ga.gamersanon.home
+      BASE_URL: https://4ga.gamersanon.home
+      TRUST_PROXY: "true"
       SECRET_KEY: notsecretkey
       DATABASE_URL: postgresql://postgres:notpassword@db/4gaBoards
       NODE_ENV: production
